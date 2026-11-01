@@ -11,7 +11,9 @@ COPY --from=repo2env . /src/repo2env
 COPY --from=timemachine . /src/timemachine
 COPY --from=cheatcatcher . /src/cheatcatcher
 COPY --from=arena . /src/arena
-RUN pip install --no-cache-dir /src/sandbox /src/repo2env /src/timemachine /src/cheatcatcher "/src/arena[claude]"
+COPY --from=harness . /src/harness
+RUN pip install --no-cache-dir /src/sandbox /src/repo2env /src/timemachine /src/cheatcatcher \
+    "/src/arena[claude]" "/src/harness[claude]"
 
 COPY entrypoint.sh /usr/local/bin/gauntlet-entrypoint
 RUN chmod +x /usr/local/bin/gauntlet-entrypoint

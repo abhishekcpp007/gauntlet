@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir \
     "gauntlet-repo2env @ git+${GH}/gauntlet-repo2env@${GAUNTLET_REF}" \
     "gauntlet-timemachine @ git+${GH}/gauntlet-timemachine@${GAUNTLET_REF}" \
     "gauntlet-cheatcatcher @ git+${GH}/gauntlet-cheatcatcher@${GAUNTLET_REF}" \
-    "gauntlet-arena[claude] @ git+${GH}/gauntlet-arena@${GAUNTLET_REF}"
+    "gauntlet-arena[claude] @ git+${GH}/gauntlet-arena@${GAUNTLET_REF}" \
+    "gauntlet-harness[claude] @ git+${GH}/gauntlet-harness@${GAUNTLET_REF}"
 
 COPY entrypoint.sh /usr/local/bin/gauntlet-entrypoint
 RUN chmod +x /usr/local/bin/gauntlet-entrypoint

@@ -41,6 +41,15 @@ flowchart LR
 | [gauntlet-cheatcatcher](https://github.com/abhishekcpp007/gauntlet-cheatcatcher) | Static checks over trajectories and patches for reward hacking: test tampering, conftest hooks that force passes, runner sniffing, answer peeking | Audit any agent's output before you trust its score |
 | [gauntlet-arena](https://github.com/abhishekcpp007/gauntlet-arena) | Web UI and engine: live side-by-side matches, Human vs AI mode, a Claude agent, a leaderboard | The whole thing, end to end |
 
+## The RL harness
+
+[gauntlet-harness](https://github.com/abhishekcpp007/gauntlet-harness) is the research end of the stack. It turns PRs merged on GitHub in the last few days into leak-free RL environments, runs any number of Claude models in them, and judges each episode on F2P, N2P, S2P and P2P test transitions plus a Rubrics-as-Rewards rubric. Its methods follow SWE-bench, Multi-SWE-bench, SWE-rebench, SWE-RL and Rubrics as Rewards. It ships in the same image:
+
+```bash
+docker compose run --rm --entrypoint gauntlet arena pipeline --repo prettytable/prettytable \
+  --merged-after 2026-01-01 --policies oracle,noop,cheater -o /data/runs
+```
+
 ## A match, start to finish
 
 1. repo2env builds the env image once and mines tasks. Each task is a commit's parent, the hidden tests from that commit, and the lists of tests that should flip to passing or stay passing.
