@@ -1,0 +1,21 @@
+# Same image as ./Dockerfile, but built from the sibling folders on disk
+# instead of GitHub. Used by compose.dev.yaml while hacking on the pieces.
+FROM python:3.12-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=sandbox . /src/sandbox
+COPY --from=repo2env . /src/repo2env
+COPY --from=timemachine . /src/timemachine
+COPY --from=cheatcatcher . /src/cheatcatcher
+COPY --from=arena . /src/arena
+RUN pip install --no-cache-dir /src/sandbox /src/repo2env /src/timemachine /src/cheatcatcher "/src/arena[claude]"
+
+COPY entrypoint.sh /usr/local/bin/gauntlet-entrypoint
+RUN chmod +x /usr/local/bin/gauntlet-entrypoint
+
+ENV GAUNTLET_CACHE=/data/cache
+EXPOSE 8080
+ENTRYPOINT ["gauntlet-entrypoint"]

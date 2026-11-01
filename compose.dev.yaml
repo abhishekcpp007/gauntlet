@@ -1,0 +1,27 @@
+# Build from the sibling folders instead of GitHub:
+#   docker compose -f compose.dev.yaml up --build
+services:
+  arena:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+      additional_contexts:
+        sandbox: ../sandbox
+        repo2env: ../repo2env
+        timemachine: ../timemachine
+        cheatcatcher: ../cheatcatcher
+        arena: ../arena
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gauntlet-dev-data:/data
+    environment:
+      GAUNTLET_REPOS: ${GAUNTLET_REPOS:-https://github.com/pallets/itsdangerous}
+      GAUNTLET_TASKS_PER_REPO: ${GAUNTLET_TASKS_PER_REPO:-5}
+      GAUNTLET_MAX_COMMITS: ${GAUNTLET_MAX_COMMITS:-500}  # how far back to look for tasks
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GAUNTLET_API_KEY: ${GAUNTLET_API_KEY:-}
+
+volumes:
+  gauntlet-dev-data:

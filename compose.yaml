@@ -1,0 +1,22 @@
+services:
+  arena:
+    build:
+      context: .
+      args:
+        GAUNTLET_REF: main
+    ports:
+      - "127.0.0.1:8080:8080"  # localhost only, the arena starts containers on demand
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gauntlet-data:/data
+    environment:
+      # space separated Python repos with pytest suites
+      GAUNTLET_REPOS: ${GAUNTLET_REPOS:-https://github.com/pallets/itsdangerous}
+      GAUNTLET_TASKS_PER_REPO: ${GAUNTLET_TASKS_PER_REPO:-5}
+      GAUNTLET_MAX_COMMITS: ${GAUNTLET_MAX_COMMITS:-500}  # how far back to look for tasks
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GAUNTLET_API_KEY: ${GAUNTLET_API_KEY:-}
+    restart: unless-stopped
+
+volumes:
+  gauntlet-data:
