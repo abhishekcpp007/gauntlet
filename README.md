@@ -1,5 +1,7 @@
 # Gauntlet
 
+![Repos](https://img.shields.io/badge/repos-7-blue) ![Live tasks](https://img.shields.io/badge/live%20tasks-53%20(Nov%202026)-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+
 An open source proving ground for AI coding agents. Point it at any Python repo and it turns the project's own history into graded coding tasks, then races agents (and you) on them in the browser, with every command recorded, replayable and checked for cheating.
 
 ```bash
@@ -16,7 +18,7 @@ First boot builds an environment for [pallets/itsdangerous](https://github.com/p
 
 Coding agent benchmarks like SWE-bench are expensive to build and easy to fool. Somebody has to set up each repo, find commits that make good tasks, and trust that a green test run means the agent actually fixed something. I spent a lot of time on RL environments and trajectory work, and kept wanting one small toolkit that did the whole loop on any repo I chose, and that took cheating seriously.
 
-So Gauntlet is five small libraries that each make sense alone and snap together into one platform.
+So Gauntlet is five small libraries that each make sense alone, an arena that snaps them together, and an RL harness that turns this week's merged PRs into training environments.
 
 ## The pieces
 
@@ -31,6 +33,10 @@ flowchart LR
     C --> G
     G --> L[leaderboard]
     T --> A
+    PR[fresh merged PRs] --> H[harness<br/>leak-free RL envs, F2P/P2P judging]
+    S --> H
+    C --> H
+    H --> D[(SFT / GRPO / DPO data)]
 ```
 
 | Repo | What it does | Standalone use |
@@ -40,14 +46,19 @@ flowchart LR
 | [gauntlet-timemachine](https://github.com/abhishekcpp007/gauntlet-timemachine) | Replays a trajectory, checks it's deterministic, branches a new run from any step, and renders a self-contained HTML viewer | Debug agent runs step by step |
 | [gauntlet-cheatcatcher](https://github.com/abhishekcpp007/gauntlet-cheatcatcher) | Static checks over trajectories and patches for reward hacking: test tampering, conftest hooks that force passes, runner sniffing, answer peeking | Audit any agent's output before you trust its score |
 | [gauntlet-arena](https://github.com/abhishekcpp007/gauntlet-arena) | Web UI and engine: live side-by-side matches, Human vs AI mode, a Claude agent, a leaderboard | The whole thing, end to end |
+| [gauntlet-harness](https://github.com/abhishekcpp007/gauntlet-harness) | Turns freshly merged GitHub PRs into leak-free RL environments, judges models on test transitions and rubrics, exports training data | A contamination-free benchmark and an RL gym in one |
 
 ## The RL harness
 
-[gauntlet-harness](https://github.com/abhishekcpp007/gauntlet-harness) is the research end of the stack. It turns PRs merged on GitHub in the last few days into leak-free RL environments, runs any number of Claude models in them, and judges each episode on F2P, N2P, S2P and P2P test transitions plus a Rubrics-as-Rewards rubric. Its methods follow SWE-bench, Multi-SWE-bench, SWE-rebench, SWE-RL and Rubrics as Rewards. It ships in the same image:
+[gauntlet-harness](https://github.com/abhishekcpp007/gauntlet-harness) is the research end of the stack. It takes PRs merged on GitHub in the last few days, builds each one into a sandboxed task at the commit before the merge, and proves the task is leak-free and solvable before keeping it. Then it runs models in those tasks and judges every episode on F2P, N2P, S2P and P2P test transitions plus a Rubrics-as-Rewards rubric. Its methods follow SWE-bench, Multi-SWE-bench, SWE-rebench, SWE-RL and Rubrics as Rewards.
+
+**Gauntlet Live, November 2026** is the first task set it made: 53 tasks from 186 PRs across 10 repos, all merged between September and October 2026. The oracle solves 53 of 53, and the cheater is caught on 53 of 53. A weekly workflow keeps making new ones. Building it on real PRs also exposed six bugs in the harness itself, and [the harness README](https://github.com/abhishekcpp007/gauntlet-harness#it-found-its-own-bugs) tells that story.
+
+It plugs into RL code three ways: a Python `SWEEnv`, a Gymnasium env (`gauntlet/SWE-v0`) and an HTTP server for agents in any language. `gauntlet export` turns finished episodes into SFT transcripts, GRPO advantages or DPO pairs. It ships in the same image:
 
 ```bash
-docker compose run --rm --entrypoint gauntlet arena pipeline --repo prettytable/prettytable \
-  --merged-after 2026-01-01 --policies oracle,noop,cheater -o /data/runs
+docker compose run --rm --entrypoint gauntlet arena pipeline --repo mahmoud/boltons \
+  --merged-after 2026-09-01 --policies oracle,noop,cheater -o /data/runs
 ```
 
 ## A match, start to finish
@@ -98,13 +109,13 @@ gauntlet-arena run --tasks pallets__itsdangerous.tasks.jsonl --all --agents clau
 
 ## Hacking on it
 
-Clone all six repos side by side and build from local folders instead of GitHub:
+Clone all seven repos side by side and build from local folders instead of GitHub:
 
 ```bash
-for r in gauntlet gauntlet-sandbox gauntlet-repo2env gauntlet-timemachine gauntlet-cheatcatcher gauntlet-arena; do
+for r in gauntlet gauntlet-sandbox gauntlet-repo2env gauntlet-timemachine gauntlet-cheatcatcher gauntlet-arena gauntlet-harness; do
   git clone https://github.com/abhishekcpp007/$r
 done
-# rename the pieces to sandbox/, repo2env/, timemachine/, cheatcatcher/, arena/ next to gauntlet/
+# rename the pieces to sandbox/, repo2env/, timemachine/, cheatcatcher/, arena/, harness/ next to gauntlet/
 cd gauntlet && docker compose -f compose.dev.yaml up --build
 ```
 
