@@ -12,8 +12,18 @@ COPY --from=timemachine . /src/timemachine
 COPY --from=cheatcatcher . /src/cheatcatcher
 COPY --from=arena . /src/arena
 COPY --from=harness . /src/harness
-RUN pip install --no-cache-dir /src/sandbox /src/repo2env /src/timemachine /src/cheatcatcher \
-    "/src/arena[claude]" "/src/harness[claude]"
+COPY scripts/extra_deps.py /src/extra_deps.py
+
+# Every piece declares the ones below it as a git direct reference, so handing
+# pip a local path and that URL for the same name ends in ResolutionImpossible.
+# Install the third-party requirements first, then the six from disk with
+# --no-deps, which is what makes this build use your working copies.
+RUN python /src/extra_deps.py /src/sandbox /src/repo2env /src/timemachine \
+        /src/cheatcatcher /src/arena /src/harness > /tmp/extra.txt \
+ && pip install --no-cache-dir -r /tmp/extra.txt \
+ && pip install --no-cache-dir --no-deps \
+        /src/sandbox /src/repo2env /src/timemachine /src/cheatcatcher /src/arena /src/harness \
+ && pip check
 
 COPY entrypoint.sh /usr/local/bin/gauntlet-entrypoint
 RUN chmod +x /usr/local/bin/gauntlet-entrypoint

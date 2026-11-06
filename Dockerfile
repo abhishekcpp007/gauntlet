@@ -9,13 +9,13 @@ RUN apt-get update \
 
 ARG GAUNTLET_REF=main
 ARG GH=https://github.com/abhishekcpp007
+# Only the two leaf packages. arena and harness each declare the four libraries
+# as direct git references, so pip pulls them in. Naming a library here too
+# would give pip a second URL for the same name (one with @REF, one without)
+# and it refuses that with ResolutionImpossible.
 RUN pip install --no-cache-dir \
-    "gauntlet-sandbox @ git+${GH}/gauntlet-sandbox@${GAUNTLET_REF}" \
-    "gauntlet-repo2env @ git+${GH}/gauntlet-repo2env@${GAUNTLET_REF}" \
-    "gauntlet-timemachine @ git+${GH}/gauntlet-timemachine@${GAUNTLET_REF}" \
-    "gauntlet-cheatcatcher @ git+${GH}/gauntlet-cheatcatcher@${GAUNTLET_REF}" \
     "gauntlet-arena[claude] @ git+${GH}/gauntlet-arena@${GAUNTLET_REF}" \
-    "gauntlet-harness[claude] @ git+${GH}/gauntlet-harness@${GAUNTLET_REF}"
+    "gauntlet-harness[claude,gym] @ git+${GH}/gauntlet-harness@${GAUNTLET_REF}"
 
 COPY entrypoint.sh /usr/local/bin/gauntlet-entrypoint
 RUN chmod +x /usr/local/bin/gauntlet-entrypoint

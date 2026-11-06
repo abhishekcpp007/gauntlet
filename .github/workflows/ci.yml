@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # the image installs from the tips of six repos, so it can break without
+    # anything in this one changing
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: build the published image and boot it
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: docker build -t gauntlet:ci .
+
+      - name: every piece imports and every CLI is on PATH
+        run: |
+          docker run --rm gauntlet:ci python -c "
+          import gauntlet_sandbox, gauntlet_repo2env, gauntlet_timemachine
+          import gauntlet_cheatcatcher, gauntlet_arena, gauntlet_harness
+          print('all six import')
+          "
+          docker run --rm --entrypoint sh gauntlet:ci -c '
+            set -e
+            for c in gauntlet-arena repo2env timemachine cheatcatcher gauntlet; do
+              command -v "$c" >/dev/null || { echo "missing: $c"; exit 1; }
+              echo "found: $c"
+            done
+            pip check
+          '
+
+      - name: the arena serves a task and answers on 8080
+        run: |
+          # a task of our own, so this does not depend on mining finding
+          # anything in a third-party repo on the day CI happens to run
+          mkdir -p smoke
+          cat > smoke/smoke.tasks.jsonl <<'EOF'
+          {"format":"gauntlet.task/v1","instance_id":"smoke-1","repo":"example/smoke","image":"python:3.12-slim","workdir":"/repo","base_commit":"0000000000000000000000000000000000000000","solution_commit":"1111111111111111111111111111111111111111","problem_statement":"boot check","gold_patch":"","test_patch":"","test_files":["tests/test_smoke.py"],"fail_to_pass":["tests/test_smoke.py::test_one"],"pass_to_pass":[]}
+          EOF
+          docker run -d --name arena -p 8080:8080 \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/smoke:/data/tasks" \
+            gauntlet:ci
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8080/ >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/ >/dev/null || {
+            echo "the arena never answered on 8080"; docker logs arena; exit 1; }
+          echo "UI answered"
+          curl -fsS http://127.0.0.1:8080/api/tasks | tee /tmp/tasks.json
+          grep -q '"id":"smoke-1"' /tmp/tasks.json || {
+            echo "the arena did not load the task file"; docker logs arena; exit 1; }
+          echo "task loaded"
+
+      - name: logs
+        if: always()
+        run: docker logs arena 2>&1 | tail -40 || true
+
+      - name: stop
+        if: always()
+        run: docker rm -f arena || true
