@@ -30,7 +30,8 @@ jobs:
 
       - name: every piece imports and every CLI is on PATH
         run: |
-          docker run --rm gauntlet:ci python -c "
+          # --entrypoint, because the image's entrypoint mines tasks and serves
+          docker run --rm --entrypoint python gauntlet:ci -c "
           import gauntlet_sandbox, gauntlet_repo2env, gauntlet_timemachine
           import gauntlet_cheatcatcher, gauntlet_arena, gauntlet_harness
           print('all six import')
