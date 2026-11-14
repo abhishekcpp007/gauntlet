@@ -1,8 +1,13 @@
 # Gauntlet
 
-![Repos](https://img.shields.io/badge/repos-7-blue) ![Live tasks](https://img.shields.io/badge/live%20tasks-53%20(Nov%202026)-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+[![CI](https://github.com/abhishekcpp007/gauntlet/actions/workflows/ci.yml/badge.svg)](https://github.com/abhishekcpp007/gauntlet/actions/workflows/ci.yml)
+[![Harness CI](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/ci.yml)
+[![Nightly calibrate](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/calibrate.yml/badge.svg)](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/calibrate.yml)
+![Tasks](https://img.shields.io/badge/shipped%20tasks-147-orange)
+![Languages](https://img.shields.io/badge/python%20%7C%20js%20%7C%20ts-pytest%20%7C%20vitest%20%7C%20jest-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-An open source proving ground for AI coding agents. Point it at any Python repo and it turns the project's own history into graded coding tasks, then races agents (and you) on them in the browser, with every command recorded, replayable and checked for cheating.
+An open source proving ground for AI coding agents. It turns pull requests merged on GitHub this week into sandboxed, leak-checked coding tasks, runs agents (and you) on them, and grades every episode with a grader that has been attacked by nine purpose-built cheats and still pays them nothing.
 
 ```bash
 git clone https://github.com/abhishekcpp007/gauntlet && cd gauntlet
@@ -14,11 +19,33 @@ docker compose up
 
 First boot builds an environment for [pallets/itsdangerous](https://github.com/pallets/itsdangerous) and mines a handful of real tasks from its git history. That takes a couple of minutes. After that you're picking tasks and starting matches.
 
+## In numbers
+
+Every figure here comes from a run you can repeat with the commands in the [harness README](https://github.com/abhishekcpp007/gauntlet-harness).
+
+| Task set | Tasks | Repos | What one task is | Oracle | Best cheat reward |
+|---|---|---|---|---|---|
+| [Gauntlet Live, Nov 2026](https://github.com/abhishekcpp007/gauntlet-harness/tree/main/datasets/gauntlet-live-2026-11) | 53 | 10 Python | one merged PR | 53 / 53 | 0, and the conftest cheater caught 53 / 53 |
+| [Gauntlet Live JS, Nov 2026](https://github.com/abhishekcpp007/gauntlet-harness/tree/main/datasets/gauntlet-live-js-2026-11) | 69 | 11 JS/TS | one merged PR | 68 / 69 | 0 over 621 cheat episodes |
+| [Gauntlet LHT, Nov 2026](https://github.com/abhishekcpp007/gauntlet-harness/tree/main/datasets/gauntlet-lht-2026-11) | 25 | 13 Python | a whole release, `vX` to `vY` | 25 / 25 | 0 over 225 cheat episodes |
+
+147 tasks from 26 repos. Every task ships with its own env fingerprint, and CI recomputes all 147 on every push, so a task that would no longer rebuild on a fresh machine turns the build red.
+
+The grader was red-teamed in three rounds. Each round I wrote the cheat a smart model would write after reading the grader's source, watched it win, and closed the hole:
+
+| Round | Cheat | Before the fix | After |
+|---|---|---|---|
+| 1 | forge pytest reports from inside source, base64 so no regex sees it | resolved 7 / 10 at +0.89, Cheat Catcher saw nothing | canary tests + file hashes, every cheat that ran caught (23 / 23) |
+| 2 | read the canary code, spare anything that looks planted | resolved 7 / 10 at +0.88 | canaries look like real sibling tests, 0 / 60 |
+| 3 | remember the base commit's test names, force only those to pass | won 3 / 3 on one task at +0.87 | target tests renamed during grading, 0 / 53 |
+
+A nightly workflow re-runs the whole zoo on random live tasks and fails if the oracle stops winning or any cheat scores above 0. Running all of this on real repos also found more than 30 bugs in the harness itself, each fixed with a regression test named after the PR that exposed it.
+
 ## Why I built it
 
-Coding agent benchmarks like SWE-bench are expensive to build and easy to fool. Somebody has to set up each repo, find commits that make good tasks, and trust that a green test run means the agent actually fixed something. I spent a lot of time on RL environments and trajectory work, and kept wanting one small toolkit that did the whole loop on any repo I chose, and that took cheating seriously.
+Coding agent benchmarks are expensive to build, go stale once their fixes land in training data, and are easier to fool than their scores suggest. A green test run doesn't prove an agent fixed anything if the agent could touch the tests, the runner or the report.
 
-So Gauntlet is five small libraries that each make sense alone, an arena that snaps them together, and an RL harness that turns this week's merged PRs into training environments.
+So Gauntlet keeps making new tasks out of PRs merged after a model's cutoff, proves each one is leak-free and solvable before keeping it, and treats the grader as something to attack rather than trust. It's six small libraries that each make sense alone, plus an arena that snaps them together.
 
 ## The pieces
 
@@ -39,27 +66,28 @@ flowchart LR
     H --> D[(SFT / GRPO / DPO data)]
 ```
 
-| Repo | What it does | Standalone use |
+| Repo | What it does | Tests |
 |---|---|---|
-| [gauntlet-sandbox](https://github.com/abhishekcpp007/gauntlet-sandbox) | Runs agent actions in locked-down containers (no network, capped CPU, memory and pids, every capability dropped) and records each step as a JSONL trajectory | Safe code execution for any agent or eval harness |
-| [gauntlet-repo2env](https://github.com/abhishekcpp007/gauntlet-repo2env) | Builds a Docker env for a Python repo and mines SWE-style tasks from commits that change both code and tests | Make your own SWE-bench from any repo in minutes |
-| [gauntlet-timemachine](https://github.com/abhishekcpp007/gauntlet-timemachine) | Replays a trajectory, checks it's deterministic, branches a new run from any step, and renders a self-contained HTML viewer | Debug agent runs step by step |
-| [gauntlet-cheatcatcher](https://github.com/abhishekcpp007/gauntlet-cheatcatcher) | Static checks over trajectories and patches for reward hacking: test tampering, conftest hooks that force passes, runner sniffing, answer peeking | Audit any agent's output before you trust its score |
-| [gauntlet-arena](https://github.com/abhishekcpp007/gauntlet-arena) | Web UI and engine: live side-by-side matches, Human vs AI mode, a Claude agent, a leaderboard | The whole thing, end to end |
-| [gauntlet-harness](https://github.com/abhishekcpp007/gauntlet-harness) | Turns freshly merged GitHub PRs into leak-free RL environments, judges models on test transitions and rubrics, exports training data | A contamination-free benchmark and an RL gym in one |
+| [gauntlet-harness](https://github.com/abhishekcpp007/gauntlet-harness) | Turns freshly merged PRs and release ranges into leak-free RL environments, red-teams its own grader, reports pass@k with intervals and paired tests, exports SFT, GRPO and DPO data | 340 |
+| [gauntlet-repo2env](https://github.com/abhishekcpp007/gauntlet-repo2env) | Builds a Docker env for a Python (pytest) or JS/TS (vitest, jest) repo and mines SWE-style tasks from its history | 98 |
+| [gauntlet-cheatcatcher](https://github.com/abhishekcpp007/gauntlet-cheatcatcher) | Static checks over trajectories and patches for reward hacking: test tampering, outcome forcing, runner sniffing, answer peeking. 0 cheating verdicts on 53 real merged fixes | 90 |
+| [gauntlet-sandbox](https://github.com/abhishekcpp007/gauntlet-sandbox) | Runs agent actions in locked-down containers (no network, capped CPU, memory and pids, every capability dropped) and records each step as JSONL | 31 |
+| [gauntlet-timemachine](https://github.com/abhishekcpp007/gauntlet-timemachine) | Replays a trajectory, checks it's deterministic, branches a new run from any step, renders a self-contained HTML viewer | 14 |
+| [gauntlet-arena](https://github.com/abhishekcpp007/gauntlet-arena) | Web UI and engine: live side-by-side matches, Human vs AI mode, a Claude agent, a leaderboard | 12 |
 
-## The RL harness
+## Plug in a model
 
-[gauntlet-harness](https://github.com/abhishekcpp007/gauntlet-harness) is the research end of the stack. It takes PRs merged on GitHub in the last few days, builds each one into a sandboxed task at the commit before the merge, and proves the task is leak-free and solvable before keeping it. Then it runs models in those tasks and judges every episode on F2P, N2P, S2P and P2P test transitions plus a Rubrics-as-Rewards rubric. Its methods follow SWE-bench, Multi-SWE-bench, SWE-rebench, SWE-RL and Rubrics as Rewards.
-
-**Gauntlet Live, November 2026** is the first task set it made: 53 tasks from 186 PRs across 10 repos, all merged between September and October 2026. The oracle solves 53 of 53, and the cheater is caught on 53 of 53. A weekly workflow keeps making new ones. Building it on real PRs also exposed six bugs in the harness itself, and [the harness README](https://github.com/abhishekcpp007/gauntlet-harness#it-found-its-own-bugs) tells that story.
-
-It plugs into RL code three ways: a Python `SWEEnv`, a Gymnasium env (`gauntlet/SWE-v0`) and an HTTP server for agents in any language. `gauntlet export` turns finished episodes into SFT transcripts, GRPO advantages or DPO pairs. It ships in the same image:
+The harness runs any model behind the Anthropic API or an OpenAI-compatible endpoint, hosted or local, on the same tasks with the same grading:
 
 ```bash
-docker compose run --rm --entrypoint gauntlet arena pipeline --repo mahmoud/boltons \
-  --merged-after 2026-09-01 --policies oracle,noop,cheater -o /data/runs
+pip install "gauntlet-harness[claude,openai] @ git+https://github.com/abhishekcpp007/gauntlet-harness"
+gauntlet run --tasks tasks.jsonl --policies claude:claude-sonnet-5-5,oracle,noop --attempts 4
+
+# a local model through Ollama, same tasks, same grading
+OPENAI_BASE_URL=http://localhost:11434/v1 gauntlet run --tasks tasks.jsonl --policies openai:qwen3:32b,oracle,noop
 ```
+
+The report puts a 95% interval next to every pass@1 and runs McNemar's exact test between every pair of models, so a gap that isn't real gets called that. `--cutoff YYYY-MM-DD` splits every number at a model's training cutoff. It also plugs into RL code as a Python `SWEEnv`, a Gymnasium env (`gauntlet/SWE-v0`) or an HTTP server, and `gauntlet export` turns episodes into SFT, GRPO or DPO data.
 
 ## A match, start to finish
 
@@ -123,10 +151,22 @@ Each piece uses uv, ruff and pytest, and its CI runs the Docker tests on real co
 
 ## Limits, honestly
 
-- Python repos with pytest only, for now.
-- The env image is built at one commit, so tasks from much older history can fail if dependencies moved a lot.
-- The problem statement is the commit message, not a GitHub issue. That makes some tasks harder than they'd be for a human with context.
+- Python with pytest, and JS/TS with vitest or jest. No other languages yet, and no JS workspaces or repos whose tests import a build.
+- No frontier model has been run on the published sets yet, so there's no model leaderboard. The harness is ready for one, and the numbers above are calibration, not model scores.
+- Fresh tasks rot: 2 of the 53 Live tasks stopped building within four days because their repo force-pushed. The weekly build is what pays for that.
+- The problem statement is the PR text, not a full issue thread, so some tasks are harder than they'd be for a human with context.
 - Containers aren't VMs. The sandbox defaults stop accidents and casual escapes. For truly hostile code, run it on a throwaway VM or under gVisor.
-- Cheat Catcher is static analysis. It catches the known tricks with few false positives, and it's built to have new rules added as new tricks show up.
+- The canary is placed at random, so beating it is a rate, not a yes or no. The harness README gives the measured rate and why Cheat Catcher still catches those runs.
+
+## Cite
+
+```bibtex
+@software{gauntlet2026,
+  author = {Abhishek},
+  title  = {Gauntlet: leak-free RL environments from fresh GitHub PRs, with a red-teamed grader},
+  year   = {2026},
+  url    = {https://github.com/abhishekcpp007/gauntlet}
+}
+```
 
 MIT licensed. Built by Abhishek.

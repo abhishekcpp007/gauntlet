@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use Gauntlet, please cite it like this."
+title: "Gauntlet: leak-free RL environments from fresh GitHub PRs, with a red-teamed grader"
+authors:
+  - name: "Abhishek"
+type: software
+license: MIT
+repository-code: "https://github.com/abhishekcpp007/gauntlet"
+date-released: "2026-11-15"
+keywords:
+  - coding-agents
+  - reinforcement-learning
+  - benchmark
+  - reward-hacking
+  - swe-bench
