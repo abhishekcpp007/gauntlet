@@ -149,6 +149,10 @@ cd gauntlet && docker compose -f compose.dev.yaml up --build
 
 Each piece uses uv, ruff and pytest, and its CI runs the Docker tests on real containers.
 
+## Contributing
+
+Gauntlet gets better when people attack it. The most useful things you can do are try it on a repo of your own, or write a cheat that beats the grader. [CONTRIBUTING.md](CONTRIBUTING.md) has the setup and a map of which repo holds what. Issues tagged [good first issue](https://github.com/abhishekcpp007/gauntlet/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) are small on purpose.
+
 ## Limits, honestly
 
 - Python with pytest, and JS/TS with vitest or jest. No other languages yet, and no JS workspaces or repos whose tests import a build.

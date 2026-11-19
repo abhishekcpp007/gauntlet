@@ -1,0 +1,23 @@
+name: I beat the grader
+description: A run that scores above 0 without fixing the bug
+labels: ["help wanted"]
+body:
+  - type: textarea
+    id: trick
+    attributes:
+      label: The trick
+      description: What the agent does and why the grader misses it.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The task id, the patch or policy, and the reward you got.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Idea for a fix
+      description: Optional. A report with no fix is still welcome.

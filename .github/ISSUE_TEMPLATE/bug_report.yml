@@ -1,0 +1,31 @@
+name: Bug report
+description: Something broke or gave a wrong result
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: piece
+    attributes:
+      label: Which piece
+      options: [Not sure, harness, repo2env, cheatcatcher, sandbox, timemachine, arena, Docker image or Compose]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected and what you got. Paste the error.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands. A repo URL helps if a build or a mine failed.
+      render: bash
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: macOS 15, Docker 27, Python 3.12
