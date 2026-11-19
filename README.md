@@ -75,12 +75,12 @@ flowchart TB
         VAL --> LEAK["leak check, 9 checks"]
         LEAK --> TS[("task set<br/>tasks.jsonl + env fingerprints")]
     end
-    TS -->|gauntlet export --format harbor| HT[("Harbor task folders")]
+    TS -->|"gauntlet export --format harbor"| HT[("Harbor task folders")]
     subgraph run["Running an agent"]
         HT --> AG["Harbor agent container<br/>offline, no hidden tests"]
         TS --> SB["gauntlet run<br/>gauntlet-sandbox, one container per episode"]
     end
-    AG -->|collect hook: git diff| VF["separate Harbor verifier container<br/>gauntlet harbor-grade"]
+    AG -->|"collect hook: git diff"| VF["separate Harbor verifier container<br/>gauntlet harbor-grade"]
     VF --> GR
     SB --> GR["grader: hidden tests, canaries,<br/>renamed targets, file hashes"]
     CC["gauntlet-cheatcatcher<br/>patch and trajectory rules"] --> GR
