@@ -1,7 +1,7 @@
 # Gauntlet
 
-[![CI](https://github.com/abhishekcpp007/gauntlet/actions/workflows/ci.yml/badge.svg)](https://github.com/abhishekcpp007/gauntlet/actions/workflows/ci.yml)
-[![Harness CI](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/ci.yml)
+[![CI](https://github.com/abhishekcpp007/gauntlet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/abhishekcpp007/gauntlet/actions/workflows/ci.yml?query=branch%3Amain)
+[![Harness CI](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/ci.yml?query=branch%3Amain)
 [![Nightly calibrate](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/calibrate.yml/badge.svg)](https://github.com/abhishekcpp007/gauntlet-harness/actions/workflows/calibrate.yml)
 ![Tasks](https://img.shields.io/badge/shipped%20tasks-147-orange)
 ![Languages](https://img.shields.io/badge/python%20%7C%20js%20%7C%20ts-pytest%20%7C%20vitest%20%7C%20jest-blue)
@@ -47,24 +47,50 @@ Coding agent benchmarks are expensive to build, go stale once their fixes land i
 
 So Gauntlet keeps making new tasks out of PRs merged after a model's cutoff, proves each one is leak-free and solvable before keeping it, and treats the grader as something to attack rather than trust. It's six small libraries that each make sense alone, plus an arena that snaps them together.
 
-## The pieces
+## How it measures, in six steps
+
+The same order every eval design should be argued in. Each step links to where the claim is checked.
+
+**1. Construct validity.** The claim is narrow on purpose: given a real repository at the commit before a merged change, can an agent make that change so the project's own hidden tests pass, without touching the tests or the runner? It doesn't claim to measure coding skill in general. The biggest threat to it is a grader that can be fooled, because then the score measures cheating, so step 3 is built around that.
+
+**2. Dataset construction.** Tasks come from PRs merged this week, or from a whole release range (`vX` to `vY`) for the long-horizon set. Each candidate gets an env image at its base commit and runs three times, so every test is classified as fail-to-pass, new, skipped-to-pass or pass-to-pass, and anything flaky is dropped. Most PRs don't survive: the Python Live set kept 53 tasks out of 186 PRs, the JS set 69 out of 219. Every task carries an env fingerprint, and CI recomputes all 147 on every push.
+
+**3. Grading.** Hidden tests go on after the agent finishes, and its edits to tests and runner config are stripped first. Then the grader plants canary tests, renames the target tests and hashes every test file before and after the run, so a forged report, a sniffed test name or a tampered file costs the reward instead of earning it. Nine purpose-built cheats were thrown at it over three rounds, and the best one now scores 0. Under Harbor the same grader runs in a separate verifier container that never saw the agent.
+
+**4. Contamination.** A task is only as fresh as its merge date, so the sets are rebuilt weekly from new PRs and `--cutoff YYYY-MM-DD` splits every number at a model's training cutoff. A leak check with nine separate checks runs on each task before it's kept. It once caught `flit_core` vendoring a newer tomli inside site-packages, which would have handed the agent the answer.
+
+**5. Baseline.** Before any model, the floor and the ceiling: `oracle` applies the merged fix (53 of 53, 68 of 69, 25 of 25), `noop` does nothing, and the cheat zoo stands in for a model that games the grader. Every pass rate comes with a 95% Wilson interval, and McNemar's exact test is run between every pair of policies, with a warning when there are too few disagreeing tasks to call anything significant. No frontier model has been run on the published sets yet, so there is no model leaderboard.
+
+**6. Failure analysis.** Running on real repos found more than 30 bugs in the harness itself, each fixed with a regression test named after the PR that exposed it. The grader's own error rates are measured, not assumed: a canary-aware cheat dodges 6.25% of canary layouts (95% CI 5.27 to 7.40%), which is why Cheat Catcher backs it up, and Cheat Catcher flags 0 of the 53 real merged fixes as cheating. Fresh tasks rot too. 2 of the 53 Live tasks stopped building within four days because their repo force-pushed.
+
+## Architecture
+
+Seven repos, one path from a merged PR to a reward:
 
 ```mermaid
-flowchart LR
-    R[GitHub repo] --> E[repo2env<br/>build env + mine tasks]
-    E -->|tasks| A[arena<br/>matches + leaderboard]
-    A -->|one sandbox per contestant| S[sandbox<br/>locked-down Docker + trajectories]
-    S -->|trajectory| T[timemachine<br/>replay, branch, viewer]
-    S -->|trajectory + patch| C[cheatcatcher<br/>reward hacking checks]
-    E -->|hidden tests| G{graded}
-    C --> G
-    G --> L[leaderboard]
-    T --> A
-    PR[fresh merged PRs] --> H[harness<br/>leak-free RL envs, F2P/P2P judging]
-    S --> H
-    C --> H
-    H --> D[(SFT / GRPO / DPO data)]
+flowchart TB
+    subgraph build["Dataset construction: gauntlet-harness + gauntlet-repo2env"]
+        PR["PRs merged this week,<br/>or a whole release range"] --> ENV["repo2env: env image<br/>at the base commit"]
+        ENV --> VAL["3 runs each: F2P, N2P, S2P, P2P<br/>flaky tests dropped"]
+        VAL --> LEAK["leak check, 9 checks"]
+        LEAK --> TS[("task set<br/>tasks.jsonl + env fingerprints")]
+    end
+    TS -->|gauntlet export --format harbor| HT[("Harbor task folders")]
+    subgraph run["Running an agent"]
+        HT --> AG["Harbor agent container<br/>offline, no hidden tests"]
+        TS --> SB["gauntlet run<br/>gauntlet-sandbox, one container per episode"]
+    end
+    AG -->|collect hook: git diff| VF["separate Harbor verifier container<br/>gauntlet harbor-grade"]
+    VF --> GR
+    SB --> GR["grader: hidden tests, canaries,<br/>renamed targets, file hashes"]
+    CC["gauntlet-cheatcatcher<br/>patch and trajectory rules"] --> GR
+    GR --> RW["reward + report<br/>Wilson intervals, McNemar"]
+    RW --> DATA[("SFT / GRPO / DPO rows")]
+    SB --> TM["gauntlet-timemachine<br/>replay, branch, diff"]
+    TS --> AR["gauntlet-arena<br/>live matches, leaderboard"]
 ```
+
+The grader is the same code on both paths. Inside Gauntlet it boots its own sandbox. Under Harbor the verifier container is that sandbox: a fresh copy of the env that never saw the agent, with the agent's diff as the only thing carried over.
 
 | Repo | What it does | Tests |
 |---|---|---|
@@ -88,6 +114,19 @@ OPENAI_BASE_URL=http://localhost:11434/v1 gauntlet run --tasks tasks.jsonl --pol
 ```
 
 The report puts a 95% interval next to every pass@1 and runs McNemar's exact test between every pair of models, so a gap that isn't real gets called that. `--cutoff YYYY-MM-DD` splits every number at a model's training cutoff. It also plugs into RL code as a Python `SWEEnv`, a Gymnasium env (`gauntlet/SWE-v0`) or an HTTP server, and `gauntlet export` turns episodes into SFT, GRPO or DPO data.
+
+## Run it on Harbor
+
+Every task also exports to [Harbor](https://github.com/harbor-framework/harbor)'s layout, so any agent Harbor drives runs on Gauntlet tasks, and Harbor records the trajectories:
+
+```bash
+gauntlet export --format harbor --tasks datasets/gauntlet-live-2026-11/tasks.jsonl -o harbor/live
+harbor run -p harbor/live -a oracle
+```
+
+Both containers start offline. An agent that installs itself or calls a model API from inside its container needs those hosts let through at export time with `--agent-host`, and GitHub should never be one of them.
+
+Grading doesn't move into the agent's container. A collect hook carries the agent's diff to a separate verifier container built from the same Dockerfile, and Gauntlet's own grader runs there. A workflow in the harness checks it on every push, offline: the oracle wins on a pytest task and a vitest task, `nop` loses, and a forged conftest gets caught. The weekly live build publishes its tasks as Harbor folders. [Details in the harness README](https://github.com/abhishekcpp007/gauntlet-harness#run-it-on-harbor).
 
 ## A match, start to finish
 
